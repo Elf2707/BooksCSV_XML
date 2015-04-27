@@ -1,0 +1,131 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<beans xmlns="http://www.springframework.org/schema/beans"
+	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:context="http://www.springframework.org/schema/context"
+	xmlns:c="http://www.springframework.org/schema/c" xmlns:p="http://www.springframework.org/schema/p"
+	xmlns:aop="http://www.springframework.org/schema/aop"
+	xsi:schemaLocation="http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans.xsd
+		http://www.springframework.org/schema/context http://www.springframework.org/schema/context/spring-context.xsd
+		http://www.springframework.org/schema/aop http://www.springframework.org/schema/aop/spring-aop-4.1.xsd">
+
+	<context:property-placeholder location="classpath:app.properties" />
+
+	<bean id="propertyFile"
+		class="org.springframework.core.io.support.ResourcePropertySource">
+		<constructor-arg index="0" ref="classPathPropsResource" />
+	</bean>
+
+	<bean id="classPathPropsResource" class="org.springframework.core.io.ClassPathResource"
+		c:path="app.properties" />
+
+	<bean id="dataSource" class="com.mchange.v2.c3p0.DriverManagerDataSource">
+		<property name="driverClass" value="${driver_class}" />
+		<property name="jdbcUrl" value="${db_url}" />
+		<property name="user" value="${user}" />
+		<property name="password" value="${password}" />
+	</bean>
+
+	<bean id="jdbsTamplate"
+		class="org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate"
+		c:dataSource-ref="dataSource" />
+
+	<bean id="csvReader" class="ua.lorien.spring.service.MyCSVReader"
+		c:csvFile-ref="null" scope="prototype" />
+
+	<bean id="fileChooser" class="javax.swing.JFileChooser" lazy-init="true">
+		<property name="dialogTitle" value="Choose *.csv file" />
+		<property name="fileFilter" ref="extensionFilter" />
+		<property name="acceptAllFileFilterUsed" value="false" />
+		<property name="multiSelectionEnabled" value="false" />
+		<property name="currentDirectory" ref="startFile" />
+	</bean>
+
+	<bean id="startFile" class="java.io.File">
+		<constructor-arg index="0" value="D:\\" />
+	</bean>
+
+	<bean id="extensionFilter" class="javax.swing.filechooser.FileNameExtensionFilter">
+		<constructor-arg index="0" value="CSV Reader" />
+		<constructor-arg index="1" value="csv" />
+	</bean>
+
+	<bean id="mainFrame" class="ua.lorien.spring.ui.MainFrame"
+		init-method="init">
+		<property name="title" value="CSV Reader" />
+		<property name="components">
+			<list>
+				<ref bean="mainPanel" />
+			</list>
+		</property>
+	</bean>
+
+	<bean id="mainPanel" class="ua.lorien.spring.ui.MainPanel"
+		init-method="init">
+		<property name="components">
+			<list>
+				<ref bean="scrollPane" />
+				<ref bean="buttonsPane" />
+			</list>
+		</property>
+		<property name="layoutMgr" ref="boxLayoutMainPanel" />
+	</bean>
+
+	<bean id="scrollPane" class="ua.lorien.spring.ui.TableScrollPanel"
+		c:componet-ref="tableCSV" init-method="init">
+	</bean>
+
+	<bean id="buttonsPane" class="ua.lorien.spring.ui.MainPanel"
+		init-method="init">
+		<property name="components">
+			<list>
+				<ref bean="btnOpenCSV" />
+				<ref bean="btnSaveToDB" />
+			</list>
+		</property>
+	</bean>
+
+	<bean id="boxLayoutMainPanel" class="javax.swing.BoxLayout"
+		c:target-ref="mainPanel" c:axis="#{T(javax.swing.BoxLayout).Y_AXIS}" />
+
+	<bean id="tableCSV" class="ua.lorien.spring.ui.MyCsvTbale"
+		p:imageColumnRenderer-ref="cellRenderer" p:model-ref="tableModel" />
+
+	<bean id="cellRenderer" class="ua.lorien.spring.ui.ImageAdjastCellRenderer" />
+
+	<bean id="tableModel" class="ua.lorien.spring.ui.MyTableModel"
+		p:colOblojkaIndex="13" p:numRows="5" p:columnCount="5" />
+
+	<bean id="btnOpenCSV" class="ua.lorien.spring.ui.MyButton" c:text="Open CSV"
+		p:action-ref="openAction" />
+
+	<bean id="openAction" class="ua.lorien.spring.ui.ReadCSVFileAction">
+		<property name="name" value="Open CSV" />
+	</bean>
+
+	<bean id="btnSaveToDB" class="ua.lorien.spring.ui.MyButton"
+		c:text="Save To DB" p:action-ref="saveAction" />
+
+	<bean id="saveAction" class="ua.lorien.spring.ui.SaveToDBAction">
+		<property name="name" value="Save to DB" />
+		<property name="props" ref="propertyFile" />
+		<property name="dbService" ref="saveToDbService" />
+	</bean>
+
+	<bean id="saveToDbService" class="ua.lorien.spring.service.ToDataBaseSaverService"
+		p:jdbcTemplate-ref="jdbsTamplate" />
+
+	<bean id="jdbcOpenCloseService" class="ua.lorien.spring.service.ConnectCloseJDBCService"
+		p:jdbcTemplate-ref="jdbsTamplate" />
+
+	<aop:config>
+		<aop:pointcut id="dbManipulation"
+			expression="execution(* ua.lorien.spring.ui.SaveToDBAction.actionPerformed(..))" />
+
+		<aop:aspect id="jdbcService" ref="jdbcOpenCloseService">
+			<aop:before pointcut-ref="dbManipulation" method="clearAllTablesInDB" />
+		</aop:aspect>
+
+	</aop:config>
+
+</beans>
+
+
